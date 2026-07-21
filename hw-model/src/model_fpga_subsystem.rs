@@ -555,13 +555,6 @@ impl ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
 
-        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
-        // to the FPGA block RAM fail with a SIGBUS fault.
-        let zeroed_otp = vec![0u8; OTP_SIZE];
-        self.otp_slice().copy_from_slice(&zeroed_otp);
-        self.init_otp_with_lc_override(Some(&security_state), lc_state)
-            .expect("Failed to initialize OTP");
-
         println!("Clearing fifo");
         self.clear_logs();
 
@@ -2012,6 +2005,14 @@ impl HwModel for ModelFpgaSubsystem {
         mcu_rom_slice.copy_from_slice(&mcu_rom_data);
 
         println!("new_unbooted");
+
+        // Initialize OTP memory (only done on fresh boot)
+        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
+        // to the FPGA block RAM fail with a SIGBUS fault.
+        let zeroed_otp = vec![0u8; OTP_SIZE];
+        m.otp_slice().copy_from_slice(&zeroed_otp);
+        m.init_otp_with_lc_override(Some(&m.saved_security_state), m.saved_lc_state)
+            .expect("Failed to initialize OTP");
 
         // Set up all hardware registers (input wires, keys, OTP, reset vector, etc.)
         m.setup_hardware_registers();
